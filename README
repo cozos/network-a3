@@ -1,0 +1,12 @@
+SETUP:
+Unzip folder and run `make`
+
+GO-BACK-N
+1. java gbnReceiver <outfile>
+2. java -jar channel.jar <> <> <> <>
+3. java gbnSender <delay> <infile>
+
+SELECTIVE-REPEAT
+1. java srReceiver <outfile>
+2. java -jar channel.jar <> <> <> <>
+3. java srSender <delay> <infile>
