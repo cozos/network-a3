@@ -23,18 +23,22 @@ public class srReceiver extends Receiver {
       CS456Packet parsedPacket = new CS456Packet(receivedPacket.getData());
       parsedPacket.printLog(false);
       
-      // Send ACK for all sequence numbers within range.
-      if (parsedPacket.getSequenceNumber() > windowBase - CS456Packet.WINDOW_SIZE
+      if (parsedPacket.isEOT()) {
+        this.sendAck(parsedPacket.getSequenceNumber(),
+                     receivedPacket.getAddress(),
+                     receivedPacket.getPort(),
+                     true);
+        this.end();
+      } else if (parsedPacket.getSequenceNumber() > windowBase - CS456Packet.WINDOW_SIZE
           && parsedPacket.getSequenceNumber() < windowBase + CS456Packet.WINDOW_SIZE) {
         this.sendAck(parsedPacket.getSequenceNumber(),
                      receivedPacket.getAddress(),
                      receivedPacket.getPort(),
-                     parsedPacket.isEOT());
+                     false);
       }
       
-      if (parsedPacket.getSequenceNumber() > windowBase
+      if (parsedPacket.getSequenceNumber() >= windowBase
           && parsedPacket.getSequenceNumber() < windowBase + CS456Packet.WINDOW_SIZE) {
-        
         this.addToBuffer(parsedPacket);
         
         if (parsedPacket.getSequenceNumber() == windowBase) {
@@ -44,10 +48,6 @@ public class srReceiver extends Receiver {
             windowBase++;
           }
         }
-      }
-      
-      if (parsedPacket.isEOT()) {
-        this.end();
       }
     }
   }
@@ -61,10 +61,11 @@ public class srReceiver extends Receiver {
       } else if (p1.getSequenceNumber() < p2.getSequenceNumber()) {
         buffer.add(i, p1);
         insertedFlag = true;
+        return;
       }
     }
     
-    if (insertedFlag) {
+    if (!insertedFlag) {
       buffer.add(p1);
     }
   }
@@ -93,22 +94,27 @@ public class srReceiver extends Receiver {
       // Ghetto Asserts 
       if (srReceiver.getBufferLocation(10, 19) != 9) {
         System.out.println("9 != " + srReceiver.getBufferLocation(10, 19));
+        System.exit(0);
       }
       
       if (srReceiver.getBufferLocation(10, 200) != -1) {
         System.out.println("-1");
+        System.exit(0);
       }
       
       if (srReceiver.getBufferLocation(9, 0) != 9) {
         System.out.println("10");
+        System.exit(0);
       }
       
       if (srReceiver.getBufferLocation(5, 254) != 6) {
         System.out.println("6 != " + srReceiver.getBufferLocation(5, 254));
+        System.exit(0);
       }
       
       if (srReceiver.getBufferLocation(252, 4) != 7) {
         System.out.println("7 != " + srReceiver.getBufferLocation(252, 4));
+        System.exit(0);
       }
       
       srReceiver receiver = new srReceiver(args[0]);

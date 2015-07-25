@@ -25,6 +25,10 @@ public class srSender extends Sender {
       return this.acked;
     }
     
+    public void resetTimer() {
+      this.sentDate = System.currentTimeMillis();
+    }
+    
     public boolean isTimedOut() {
       return (System.currentTimeMillis() - this.sentDate) > Sender.TIMEOUT; 
     }
@@ -61,6 +65,7 @@ public class srSender extends Sender {
     while (!this.inTransit.isEmpty() && this.inTransit.get(0).isAcked()) {
       if (!this.packetQueue.isEmpty()) {
         this.inTransit.add(new TransitPacket(this.packetQueue.get(0)));
+        this.packetQueue.get(0).printLog(true);
         this.packetQueue.remove(0);
       }
       this.inTransit.remove(0);
@@ -76,6 +81,7 @@ public class srSender extends Sender {
         for (TransitPacket transitPacket : this.inTransit) {
           if (transitPacket.shouldSend()) {
             this.socket.send(transitPacket.packet.getDatagram(this.host, this.port));
+            transitPacket.resetTimer();
           }
         }
       } catch (IOException e) {}
@@ -92,6 +98,7 @@ public class srSender extends Sender {
     CS456Packet packetEOT = new CS456Packet(2, this.windowBase + CS456Packet.WINDOW_SIZE, new byte[0]);
     try { 
       socket.send(packetEOT.getDatagram(this.host, this.port));
+      packetEOT.printLog(true);
     } catch (IOException e) {}
   }
   
@@ -115,7 +122,7 @@ public class srSender extends Sender {
             transitPacket.ack();
           }
           
-          if (parsedAckPacket.getSequenceNumber() == this.windowBase) {
+          if (parsedAckPacket.getSequenceNumber() == CS456Packet.getSequenceNumber(this.windowBase)) {
             this.shiftWindow();
           }
         }

@@ -4,7 +4,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class gbnSender extends Sender {
-  private int latestAck = -1;
+  private int latestAck = 0;
   private long latestAckTime = System.currentTimeMillis();
   private Lock lock = new ReentrantLock();
   
@@ -22,7 +22,7 @@ public class gbnSender extends Sender {
       lock.lock();
       try {
         int upperBound = Math.min(latestAck + 1 + CS456Packet.WINDOW_SIZE, packetQueue.size());
-        for (int i = latestAck + 1; i < upperBound; i++) {
+        for (int i = latestAck; i < upperBound; i++) {
           // Get packet from queue.
           CS456Packet packet = this.packetQueue.get(i);
           DatagramPacket datagram = packet.getDatagram(this.host, this.port);
