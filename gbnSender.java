@@ -4,8 +4,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class gbnSender extends Sender {
-  public static int WINDOW_SIZE = 10; 
-  
   private int latestAck = -1;
   private long latestAckTime = System.currentTimeMillis();
   private Lock lock = new ReentrantLock();
@@ -23,7 +21,7 @@ public class gbnSender extends Sender {
     while (this.latestAck < this.packetQueue.size() - 1) {
       lock.lock();
       try {
-        int upperBound = Math.min(latestAck + 1 + WINDOW_SIZE, packetQueue.size());
+        int upperBound = Math.min(latestAck + 1 + CS456Packet.WINDOW_SIZE, packetQueue.size());
         for (int i = latestAck + 1; i < upperBound; i++) {
           // Get packet from queue.
           CS456Packet packet = this.packetQueue.get(i);
@@ -77,7 +75,7 @@ public class gbnSender extends Sender {
           this.latestAckTime = System.currentTimeMillis();
           
           // If we wrapped over the modulo (for example the ack is 0 and we're at 255, then skip.
-          if (parsedAckPacket.getSequenceNumber() < (this.latestAck%CS456Packet.SEQUENCE_MODULO) - WINDOW_SIZE) {
+          if (parsedAckPacket.getSequenceNumber() < (this.latestAck%CS456Packet.SEQUENCE_MODULO) - CS456Packet.WINDOW_SIZE) {
             System.out.println("Can't support over 256 packets. Oops.");
           }
           

@@ -137,8 +137,6 @@ public class Sender {
       // Package chunk in payload.
       CS456Packet packet = new CS456Packet(0, i, chunk);
       
-      System.out.println("Sending " + packet.toString());
-      
       // Construct Datagram out of raw bytes.
       byte[] rawPacket = packet.getRaw();
       DatagramPacket formattedPacket = new DatagramPacket(rawPacket, rawPacket.length, this.host, this.port); 

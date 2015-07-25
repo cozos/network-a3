@@ -4,6 +4,8 @@ import java.nio.ByteBuffer;
 
 
 /**
+ * Utils for Networks A3
+ * 
  * The Packet format as defined by CS456 Networks A3.
  *
  * 512 bytes, in this order:
@@ -19,6 +21,7 @@ import java.nio.ByteBuffer;
  *
  */
 public class CS456Packet {
+  public static int WINDOW_SIZE = 10; 
   public static int SEQUENCE_MODULO = 256;
   
   public static int getSequenceNumber(int i) {
@@ -114,6 +117,14 @@ public class CS456Packet {
     message.append(this.length);
     
     System.out.println(message.toString());
+  }
+  
+  public static int windowLowerBound(int base) {
+    return (base - WINDOW_SIZE) % SEQUENCE_MODULO;
+  }
+  
+  public static int windowUpperBound(int base) {
+    return (base + WINDOW_SIZE) % SEQUENCE_MODULO;
   }
   
   public boolean isData() {

@@ -25,12 +25,8 @@ public class gbnReceiver extends Receiver {
         this.expectedNumber = 0;
       }
       
-      System.out.println("GOT " + parsedPacket.getSequenceNumber() + " EXPECTED " + this.expectedNumber);
-      
       if (this.expectedNumber == parsedPacket.getSequenceNumber()) {
-        System.out.println("Accepted");
         if (parsedPacket.isData()) {
-          System.out.println(parsedPacket.getPayload());
           this.writeToFile(parsedPacket.getPayload());
         }
         // Packet accepted. Send ACK to acknowledge.

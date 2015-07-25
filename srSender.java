@@ -1,68 +1,146 @@
 import java.io.IOException;
 import java.net.DatagramPacket;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class srSender extends Sender {
-  public static int WINDOW_SIZE = 10; 
   
   public class TransitPacket {
-    public int sequenceNumber;
+    public CS456Packet packet;
     public long sentDate;
+    public boolean acked = false;
     
-    public TransitPacket(int sequenceNumber) {
-      this.sequenceNumber = sequenceNumber;
+    public TransitPacket(CS456Packet packet) {
+      this.packet = packet;
       this.sentDate = System.currentTimeMillis();
+    }
+    
+    public void ack() {
+      this.acked = true;
+    }
+    
+    public boolean isAcked() {
+      return this.acked;
     }
     
     public boolean isTimedOut() {
       return (System.currentTimeMillis() - this.sentDate) > Sender.TIMEOUT; 
     }
+    
+    public boolean shouldSend() {
+      return (this.isTimedOut() && !this.isAcked());
+    }
   }
   
-  private int latestAck = -1;
-  private int latestSent = -1;
-//  private List<TransitPacket> inTransit = Collections.synchronizedList(new ArrayList<TransitPacket>());
+  private Lock lock = new ReentrantLock();
+  private int windowBase;
+  private List<TransitPacket> inTransit = new ArrayList<TransitPacket>();
   
   public srSender(long timeout, String fileName) {
     super(timeout, fileName);
+    
+    this.windowBase = 0;
+    for(int i = 0; i < Math.min(CS456Packet.WINDOW_SIZE, this.packetQueue.size()); i++) {
+      this.inTransit.add(new TransitPacket(this.packetQueue.get(0)));
+      this.packetQueue.remove(0);
+    }
   }
 
-  @Override
-  public void start() {
-    this.latestSent = 0;
-    
-    for (latestSent = 0; latestSent < fileContents.size(); latestSent++) {
-      while (latestSent - latestAck > WINDOW_SIZE) {
-        try {
-          Thread.sleep(1);
-        } catch (InterruptedException e) {}
+  private TransitPacket findTransitPacket(int sequenceNumber) {
+    for (TransitPacket transitPacket : this.inTransit) {
+      if (transitPacket.packet.getSequenceNumber() == sequenceNumber) {
+        return transitPacket;
+      }
+    }
+    return null;
+  }
+  
+  private void shiftWindow() {
+    while (!this.inTransit.isEmpty() && this.inTransit.get(0).isAcked()) {
+      if (!this.packetQueue.isEmpty()) {
+        this.inTransit.add(new TransitPacket(this.packetQueue.get(0)));
+        this.packetQueue.remove(0);
+      }
+      this.inTransit.remove(0);
+      this.windowBase++;
+    }
+  }
+  
+  public void send() {
+    while(!this.inTransit.isEmpty()) {
+      lock.lock();
+      
+      try {
+        for (TransitPacket transitPacket : this.inTransit) {
+          if (transitPacket.shouldSend()) {
+            this.socket.send(transitPacket.packet.getDatagram(this.host, this.port));
+          }
+        }
+      } catch (IOException e) {}
+      finally {
+        lock.unlock();
       }
       
-      byte[] chunk = this.fileContents.get(latestSent);
-      
-      // Package chunk in payload.
-      CS456Packet packet = new CS456Packet(0, this.latestSent, chunk);
-      
-      // Construct Datagram out of raw bytes.
-      byte[] rawPacket = packet.getRaw();
-      DatagramPacket formattedPacket = new DatagramPacket(rawPacket, rawPacket.length, this.host, this.port); 
-      
-      // Send to socket.
       try {
-        this.socket.send(formattedPacket);
-        packet.printLog(true);
-      } catch (IOException e) {}
-      
-      this.latestSent++;
+        Thread.sleep(1);
+      } catch (InterruptedException e) {} 
     }
     
     // Send EOT packet.
-    CS456Packet packetEOT = new CS456Packet(2, this.latestSent, new byte[0]);
-    byte[] rawEOT = packetEOT.getRaw();
-    DatagramPacket formattedPacketEOT = new DatagramPacket(rawEOT, rawEOT.length, this.host, this.port);
-    try {
-      socket.send(formattedPacketEOT);
+    CS456Packet packetEOT = new CS456Packet(2, this.windowBase + CS456Packet.WINDOW_SIZE, new byte[0]);
+    try { 
+      socket.send(packetEOT.getDatagram(this.host, this.port));
     } catch (IOException e) {}
+  }
+  
+  public void listen() {
+    DatagramPacket ackPacket = new DatagramPacket(new byte[512], 512);
+    while (this.foundEOTPacket == false) {
+      try {
+        socket.receive(ackPacket);
+      } catch (IOException e) {}
+
+      lock.lock();
+      try {
+        CS456Packet parsedAckPacket = new CS456Packet(ackPacket.getData());
+        parsedAckPacket.printLog(false);
+        
+        if (parsedAckPacket.isEOT()) {
+          this.foundEOTPacket = true;
+        } else {
+          TransitPacket transitPacket = findTransitPacket(parsedAckPacket.getSequenceNumber());
+          if (transitPacket != null) {
+            transitPacket.ack();
+          }
+          
+          if (parsedAckPacket.getSequenceNumber() == this.windowBase) {
+            this.shiftWindow();
+          }
+        }
+      } finally {
+        lock.unlock();
+      }
+    }
+  }
+  
+  @Override
+  public void start() {
+    Thread sender = new Thread() {
+      public void run() {
+        send();
+      }
+    };
+    
+    Thread listener = new Thread() {
+      public void run() {
+        listen();
+      }
+    };
+    
+    listener.start();
+    sender.start();
   }
   
   public static void main(String args[]) {
