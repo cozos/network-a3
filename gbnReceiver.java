@@ -18,25 +18,33 @@ public class gbnReceiver extends Receiver {
       } catch (IOException e) {}
 
       CS456Packet parsedPacket = new CS456Packet(receivedPacket.getData());
-      this.writeToFile(parsedPacket.getPayload());
       parsedPacket.printLog(false);
       
       // Initialize expected number if we haven't received a packet before. 
       if (this.expectedNumber == -1) {
-        this.expectedNumber = parsedPacket.getSequenceNumber() + 1;
+        this.expectedNumber = 0;
       }
       
+      System.out.println("GOT " + parsedPacket.getSequenceNumber() + " EXPECTED " + this.expectedNumber);
+      
       if (this.expectedNumber == parsedPacket.getSequenceNumber()) {
+        System.out.println("Accepted");
+        if (parsedPacket.isData()) {
+          System.out.println(parsedPacket.getPayload());
+          this.writeToFile(parsedPacket.getPayload());
+        }
         // Packet accepted. Send ACK to acknowledge.
         this.sendAck(this.expectedNumber,
                      receivedPacket.getAddress(),
-                     receivedPacket.getPort());
+                     receivedPacket.getPort(),
+                     parsedPacket.isEOT());
         this.expectedNumber++;
       } else {
         // Packet rejected. Send ACK specifying the latest ACK.
-        this.sendAck(this.expectedNumber - 1,
+        this.sendAck(Math.max(this.expectedNumber - 1, 0),
             receivedPacket.getAddress(),
-            receivedPacket.getPort());
+            receivedPacket.getPort(),
+            parsedPacket.isEOT());
       }
       
       if (parsedPacket.isEOT()) {

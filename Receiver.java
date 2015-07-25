@@ -25,6 +25,11 @@ public class Receiver {
       try {
         this.outFile.createNewFile();
       } catch (IOException e) {}
+    } else {
+      try {
+        this.outFile.delete();
+        this.outFile.createNewFile();
+      } catch (IOException e) {}
     }
 
     // Create FileWriter
@@ -41,12 +46,14 @@ public class Receiver {
       this.socket = new DatagramSocket();
     } catch (SocketException e) {}
 
+    // Get Socket info
     String socketInfo = "";
     try {
       socketInfo = InetAddress.getLocalHost().getHostName()
           + " " + this.socket.getLocalPort();
     } catch (UnknownHostException e1) {}
 
+    // Write Socket Info to file.
     File socketFile = new File(SOCKET_FILE);
     FileOutputStream socketWriter = null;
     try {
@@ -61,8 +68,14 @@ public class Receiver {
     }
   }
   
-  public void sendAck(int sequenceNumber, InetAddress address, int port) {
-    CS456Packet packet = new CS456Packet(1, sequenceNumber, new byte[0]);
+  public void sendAck(int sequenceNumber, InetAddress address, int port, boolean EOT) {
+    // Signal ACK or EOT?
+    int packetType = 1;
+    if (EOT) {
+      packetType = 2;
+    }
+    
+    CS456Packet packet = new CS456Packet(packetType, sequenceNumber, new byte[0]);
     packet.printLog(true);
     
     // Construct Datagram out of raw bytes.
@@ -86,7 +99,8 @@ public class Receiver {
       parsedPacket.printLog(false);
       this.sendAck(parsedPacket.getSequenceNumber(),
                                 receivedPacket.getAddress(),
-                                receivedPacket.getPort());
+                                receivedPacket.getPort(),
+                                parsedPacket.isEOT());
       
       if (parsedPacket.isEOT()) {
         this.end();

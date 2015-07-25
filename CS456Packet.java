@@ -1,3 +1,5 @@
+import java.net.DatagramPacket;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
 
@@ -19,6 +21,10 @@ import java.nio.ByteBuffer;
 public class CS456Packet {
   public static int SEQUENCE_MODULO = 256;
   
+  public static int getSequenceNumber(int i) {
+    return i % SEQUENCE_MODULO;
+  }
+  
   private byte[] raw;
 
   // Formatted fields
@@ -27,6 +33,7 @@ public class CS456Packet {
   private int length;
   private int payloadLength;
   private byte[] payload;
+  private boolean acked = false; 
   
   /**
    * Given raw bytes, parse into understandable format.
@@ -63,6 +70,10 @@ public class CS456Packet {
     raw = buffer.array();
   }
   
+  public DatagramPacket getDatagram(InetAddress host, int port) { 
+    return new DatagramPacket(raw, length, host, port);
+  }
+  
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append("Packet Type: ");
@@ -92,9 +103,9 @@ public class CS456Packet {
     }
     
     if (this.isACK()) {
-      message.append("DAT ");
-    } else if (this.isData()) {
       message.append("ACK ");
+    } else if (this.isData()) {
+      message.append("DAT ");
     } else {
       message.append("EOT ");
     }
@@ -139,5 +150,16 @@ public class CS456Packet {
   
   public byte[] getPayloadBytes() {
     return this.payload;
+  }
+  
+  /**
+   * Not to be confused with isACK, which gets the type of the Packet. 
+   */
+  public boolean isAcked() {
+    return this.acked;
+  }
+
+  public void setAcked(boolean acked) {
+    this.acked = acked;
   }
 }

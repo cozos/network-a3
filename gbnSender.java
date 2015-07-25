@@ -1,12 +1,14 @@
 import java.io.IOException;
 import java.net.DatagramPacket;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class gbnSender extends Sender {
   public static int WINDOW_SIZE = 10; 
   
-  private long latestAckTime = 0;
   private int latestAck = -1;
-  private int sequenceToSend = -1;
+  private long latestAckTime = System.currentTimeMillis();
+  private Lock lock = new ReentrantLock();
   
   public gbnSender(long timeout, String fileName) {
     super(timeout, fileName);
@@ -17,48 +19,43 @@ public class gbnSender extends Sender {
   }
 
   public void send() {
-    for (sequenceToSend = 0; sequenceToSend < fileContents.size(); sequenceToSend++) {
-      // Check latestAck > 0 just in case we get stuck in this loop 
-      // at the very beginning (latestAck initialized to -1).
-      while (sequenceToSend - latestAck > WINDOW_SIZE && latestAck > 0) {
-        // If we haven't gotten an ACK in a while, then send from
-        // the beginning of the window.
-        if (this.isTimedOut()) {
-          this.sequenceToSend = this.latestAck + 1;
+    
+    while (this.latestAck < this.packetQueue.size() - 1) {
+      lock.lock();
+      try {
+        int upperBound = Math.min(latestAck + 1 + WINDOW_SIZE, packetQueue.size());
+        for (int i = latestAck + 1; i < upperBound; i++) {
+          // Get packet from queue.
+          CS456Packet packet = this.packetQueue.get(i);
+          DatagramPacket datagram = packet.getDatagram(this.host, this.port);
+          
+          // Send to socket.
+          try {
+            this.socket.send(datagram);
+            packet.printLog(true);
+          } catch (IOException e) {}
         }
-        
-        System.out.println("sequenceToSend: " + sequenceToSend);
-        System.out.println("latestAck: " + latestAck);
-        
+      } finally {
+        lock.unlock();
+      }
+      
+      while (true) {
         try {
           Thread.sleep(1);
         } catch (InterruptedException e) {}
+        
+        if (this.isTimedOut()) {
+          break;
+        }
       }
-      
-      byte[] chunk = this.fileContents.get(sequenceToSend);
-      
-      // Package chunk in payload.
-      CS456Packet packet = new CS456Packet(0, this.sequenceToSend, chunk);
-      
-      // Construct Datagram out of raw bytes.
-      byte[] rawPacket = packet.getRaw();
-      DatagramPacket formattedPacket = new DatagramPacket(rawPacket, rawPacket.length, this.host, this.port); 
-      
-      // Send to socket.
-      try {
-        this.socket.send(formattedPacket);
-        packet.printLog(true);
-      } catch (IOException e) {}
-      
-      this.sequenceToSend++;
     }
     
-    // Send EOT packet.
-    CS456Packet packetEOT = new CS456Packet(2, this.sequenceToSend, new byte[0]);
-    byte[] rawEOT = packetEOT.getRaw();
-    DatagramPacket formattedPacketEOT = new DatagramPacket(rawEOT, rawEOT.length, this.host, this.port);
+    // Send EOT Packet
+    CS456Packet packetEOT = new CS456Packet(2, this.latestAck + 1, new byte[0]);
+    this.packetQueue.add(packetEOT);
     try {
-      socket.send(formattedPacketEOT);
+      this.socket.send(packetEOT.getDatagram(this.host, this.port));
+      packetEOT.printLog(true);
     } catch (IOException e) {}
   }
   
@@ -69,17 +66,25 @@ public class gbnSender extends Sender {
         socket.receive(ackPacket);
       } catch (IOException e) {}
 
-      CS456Packet parsedPacket = new CS456Packet(ackPacket.getData());
-      parsedPacket.printLog(false);
-      
-      // The received ACK is valid if it's greater than or equal to our latest ACK.
-      if (parsedPacket.getSequenceNumber() > this.latestAck) {
-        this.latestAck = parsedPacket.getSequenceNumber();
-        this.latestAckTime = System.currentTimeMillis(); 
-      }
-      
-      if (parsedPacket.isEOT()) {
-        this.foundEOTPacket = true;
+      lock.lock();
+      try {
+        CS456Packet parsedAckPacket = new CS456Packet(ackPacket.getData());
+        parsedAckPacket.printLog(false);
+        
+        if (parsedAckPacket.isEOT()) {
+          this.foundEOTPacket = true;
+        } else {
+          this.latestAckTime = System.currentTimeMillis();
+          
+          // If we wrapped over the modulo (for example the ack is 0 and we're at 255, then skip.
+          if (parsedAckPacket.getSequenceNumber() < (this.latestAck%CS456Packet.SEQUENCE_MODULO) - WINDOW_SIZE) {
+            System.out.println("Can't support over 256 packets. Oops.");
+          }
+          
+          this.latestAck = parsedAckPacket.getSequenceNumber();
+        }
+      } finally {
+        lock.unlock();
       }
     }
   }

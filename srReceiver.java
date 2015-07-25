@@ -29,13 +29,15 @@ public class srReceiver extends Receiver {
         // Packet accepted. Send ACK to acknowledge.
         this.sendAck(this.expectedNumber,
                      receivedPacket.getAddress(),
-                     receivedPacket.getPort());
+                     receivedPacket.getPort(),
+                     parsedPacket.isEOT());
         this.expectedNumber++;
       } else {
         // Packet rejected. Send ACK specifying the latest ACK.
         this.sendAck(this.expectedNumber - 1,
             receivedPacket.getAddress(),
-            receivedPacket.getPort());
+            receivedPacket.getPort(),
+            parsedPacket.isEOT());
       }
       
       if (parsedPacket.isEOT()) {

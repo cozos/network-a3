@@ -20,12 +20,16 @@ public class Sender {
   protected int port;
   protected DatagramSocket socket;
   protected List<byte[]> fileContents;
+  protected List<CS456Packet> packetQueue;
   protected boolean foundEOTPacket = false;
   
   public Sender(long timeout, String fileName) {
     Sender.TIMEOUT = timeout;
     this.fileContents = this.readFileChunks(fileName, MAX_PAYLOAD_SIZE);
-
+    
+    // Create packetQueue from fileContents.
+    this.createPacketQueue();
+    
     // Creates the socket from SOCKET_FILE
     createSocket();
   }
@@ -45,7 +49,6 @@ public class Sender {
     } catch (UnknownHostException e1) {}
     try {
       this.socket = new DatagramSocket();
-      this.socket.connect(this.host, this.port);
     } catch (SocketException e) {
       System.out.println("Failed to connect to port " + this.port + " " + e.toString());
     } 
@@ -86,6 +89,18 @@ public class Sender {
     } catch (IOException e) {}
     
     return packetList;
+  }
+  
+  public void createPacketQueue() {
+    this.packetQueue = new ArrayList<CS456Packet>();
+    
+    // Shove file contents into packet queue.
+    int count = 0;
+    for (byte[] chunk : fileContents) {
+      CS456Packet packet = new CS456Packet(0, count, chunk);
+      this.packetQueue.add(packet);
+      count++;
+    }
   }
   
   public byte[] readFile(String fileName) {
