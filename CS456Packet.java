@@ -17,12 +17,15 @@ import java.nio.ByteBuffer;
  *
  */
 public class CS456Packet {
+  public static int SEQUENCE_MODULO = 256;
+  
   private byte[] raw;
 
   // Formatted fields
   private int packetType;
   private int sequenceNumber;
   private int length;
+  private int payloadLength;
   private byte[] payload;
   
   /**
@@ -34,8 +37,9 @@ public class CS456Packet {
     // Parse out fields.
     ByteBuffer buffer = ByteBuffer.wrap(packet);
     this.packetType = buffer.getInt();
-    this.sequenceNumber = buffer.getInt();
+    this.sequenceNumber = buffer.getInt() % SEQUENCE_MODULO;
     this.length = buffer.getInt();
+    this.payloadLength = length - 12;
     this.payload = new byte[length - 12];
     buffer.get(payload, 0, length - 12);
   }
@@ -45,8 +49,9 @@ public class CS456Packet {
    */
   public CS456Packet(int packetType, int sequenceNumber, byte[] payload) {
     this.packetType = packetType;
-    this.sequenceNumber = sequenceNumber;
+    this.sequenceNumber = sequenceNumber % SEQUENCE_MODULO;
     this.length = payload.length + 12;
+    this.payloadLength = payload.length;
     this.payload = payload;
     
     ByteBuffer buffer = ByteBuffer.allocate(payload.length + 12);
@@ -71,6 +76,35 @@ public class CS456Packet {
     return sb.toString();
   }
   
+  /**
+   * Prints a "SEND" log message if (send == true)
+   * Prints a "RECV" log message if (send == false)
+   */
+  public void printLog(boolean send) {
+    StringBuilder message = new StringBuilder();
+    
+    message.append("PKT ");
+    
+    if (send) {
+      message.append("SEND ");
+    } else {
+      message.append("RECV ");
+    }
+    
+    if (this.isACK()) {
+      message.append("DAT ");
+    } else if (this.isData()) {
+      message.append("ACK ");
+    } else {
+      message.append("EOT ");
+    }
+    
+    message.append(this.sequenceNumber + " ");
+    message.append(this.length);
+    
+    System.out.println(message.toString());
+  }
+  
   public boolean isData() {
     return this.packetType == 0; 
   }
@@ -85,5 +119,25 @@ public class CS456Packet {
   
   public byte[] getRaw() {
     return this.raw;
+  }
+  
+  public int getSequenceNumber() {
+    return this.sequenceNumber;
+  }
+  
+  public int getLength() {
+    return this.length;
+  }
+  
+  public int getPayloadLength() {
+    return payloadLength;
+  }
+  
+  public String getPayload() {
+    return new String(this.payload);
+  }
+  
+  public byte[] getPayloadBytes() {
+    return this.payload;
   }
 }

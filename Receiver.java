@@ -61,6 +61,20 @@ public class Receiver {
     }
   }
   
+  public void sendAck(int sequenceNumber, InetAddress address, int port) {
+    CS456Packet packet = new CS456Packet(1, sequenceNumber, new byte[0]);
+    packet.printLog(true);
+    
+    // Construct Datagram out of raw bytes.
+    byte[] rawPacket = packet.getRaw();
+    DatagramPacket formattedPacket = new DatagramPacket(rawPacket, rawPacket.length, address, port); 
+    
+    // Send to socket.
+    try {
+      this.socket.send(formattedPacket);
+    } catch (IOException e) {}
+  }
+  
   public void start() {
     while (this.foundEOTPacket == false) {
       try {
@@ -68,7 +82,11 @@ public class Receiver {
       } catch (IOException e) {}
 
       CS456Packet parsedPacket = new CS456Packet(receivedPacket.getData());
-      System.out.println("Receiving " + parsedPacket.toString());
+      this.writeToFile(parsedPacket.getPayload());
+      parsedPacket.printLog(false);
+      this.sendAck(parsedPacket.getSequenceNumber(),
+                                receivedPacket.getAddress(),
+                                receivedPacket.getPort());
       
       if (parsedPacket.isEOT()) {
         this.end();

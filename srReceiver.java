@@ -3,10 +3,10 @@ import java.io.IOException;
 /**
  * Receiver program that implements the Go-Back-N protocol.
  */
-public class gbnReceiver extends Receiver {
+public class srReceiver extends Receiver {
   private int expectedNumber = -1;
   
-  public gbnReceiver(String outFileName) {
+  public srReceiver(String outFileName) {
     super(outFileName);
   }
   
@@ -18,7 +18,6 @@ public class gbnReceiver extends Receiver {
       } catch (IOException e) {}
 
       CS456Packet parsedPacket = new CS456Packet(receivedPacket.getData());
-      this.writeToFile(parsedPacket.getPayload());
       parsedPacket.printLog(false);
       
       // Initialize expected number if we haven't received a packet before. 
@@ -54,7 +53,7 @@ public class gbnReceiver extends Receiver {
       System.exit(0);
     }
 
-    gbnReceiver receiver = new gbnReceiver(args[0]);
+    srReceiver receiver = new srReceiver(args[0]);
     receiver.start();
   }
 }

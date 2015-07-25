@@ -14,16 +14,16 @@ import java.util.List;
 public class Sender {
   public static String SOCKET_FILE = "channelInfo";
   public static int MAX_PAYLOAD_SIZE = 500;
-  public static int SEQUENCE_MODULO = 256;
+  public static long TIMEOUT = 0;
   
-  protected long timeout;
   protected InetAddress host;
   protected int port;
-  protected DatagramSocket sendSocket;
+  protected DatagramSocket socket;
   protected List<byte[]> fileContents;
+  protected boolean foundEOTPacket = false;
   
   public Sender(long timeout, String fileName) {
-    this.timeout = timeout;
+    Sender.TIMEOUT = timeout;
     this.fileContents = this.readFileChunks(fileName, MAX_PAYLOAD_SIZE);
 
     // Creates the socket from SOCKET_FILE
@@ -44,8 +44,8 @@ public class Sender {
       this.port = Integer.valueOf(socketInfo[1]).intValue();
     } catch (UnknownHostException e1) {}
     try {
-      this.sendSocket = new DatagramSocket();
-      this.sendSocket.connect(this.host, this.port);
+      this.socket = new DatagramSocket();
+      this.socket.connect(this.host, this.port);
     } catch (SocketException e) {
       System.out.println("Failed to connect to port " + this.port + " " + e.toString());
     } 
@@ -118,9 +118,9 @@ public class Sender {
   
   public void start() {
     int i = 0;
-    for (byte[] chunk : fileContents) {
+    for (byte[] chunk : this.fileContents) {
       // Package chunk in payload.
-      CS456Packet packet = new CS456Packet(0, i % SEQUENCE_MODULO, chunk);
+      CS456Packet packet = new CS456Packet(0, i, chunk);
       
       System.out.println("Sending " + packet.toString());
       
@@ -130,19 +130,11 @@ public class Sender {
       
       // Send to socket.
       try {
-        sendSocket.send(formattedPacket);
+        this.socket.send(formattedPacket);
       } catch (IOException e) {}
       
       i++;
     }
-    
-    // Send EOT packet.
-    CS456Packet packetEOT = new CS456Packet(2, i % SEQUENCE_MODULO, new byte[0]);
-    byte[] rawEOT = packetEOT.getRaw();
-    DatagramPacket formattedPacketEOT = new DatagramPacket(rawEOT, rawEOT.length, this.host, this.port);
-//    try {
-//      sendSocket.send(formattedPacketEOT);
-//    } catch (IOException e) {}
   }
   
   public static void main(String args[]) {
